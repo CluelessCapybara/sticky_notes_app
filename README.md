@@ -1,4 +1,4 @@
-# flutter_application_1
+# Sticky-Note To-Do app
 
 A new Flutter project.
 
