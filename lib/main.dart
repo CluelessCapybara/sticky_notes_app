@@ -32,6 +32,7 @@ class StickyNoteApp extends StatelessWidget {
 }
 
 // ---------------- Splash Screen ----------------
+// Simple splash screen that shows for 2 seconds before going to the main page
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -43,6 +44,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    // Wait 2 seconds then navigate to the home page
     Future.delayed(const Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
@@ -78,10 +80,11 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ---------------- Task Item Model ----------------
+// Represents a single task within a sticky note
 class Task {
   final String id;
   final String title;
-  final bool isCompleted; // Changed to final for immutability
+  final bool isCompleted;
 
   Task({
     required this.id,
@@ -89,7 +92,7 @@ class Task {
     this.isCompleted = false,
   });
 
-  // BEST PRACTICE: A more robust copyWith for consistency
+  // Creates a copy of this task with some fields optionally updated
   Task copyWith({
     String? id,
     String? title,
@@ -105,10 +108,14 @@ class Task {
 
 
 // ---------------- Sort and Filter Options ----------------
+// Different ways to sort the sticky notes
 enum SortOption { deadline, creationDate, title }
+
+// Different ways to filter which notes are shown
 enum FilterOption { all, upcomingDeadlines, completed }
 
 // ---------------- Main Page ----------------
+// The main screen that displays all sticky notes in a grid
 class TodoHomePage extends StatefulWidget {
   const TodoHomePage({super.key});
 
@@ -118,12 +125,13 @@ class TodoHomePage extends StatefulWidget {
 
 class _TodoHomePageState extends State<TodoHomePage> {
   final List<TodoItem> _stickyNotes = [];
-  int _idCounter = 0;
+  int _idCounter = 0; // Used to generate unique IDs for new notes
   final Random _random = Random();
   Timer? _notificationTimer;
   SortOption _currentSort = SortOption.creationDate;
   FilterOption _currentFilter = FilterOption.all;
 
+  // Color palette for the sticky notes
   final List<Color> _noteColors = [
     Colors.yellow.shade100,
     Colors.pink.shade100,
@@ -133,6 +141,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
     Colors.purple.shade100,
   ];
 
+  // Background gradient colors that change over time
   List<Color> _gradientColors = [
     const Color(0xFFFFE0B2),
     const Color(0xFFFFCC80),
@@ -141,6 +150,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
   @override
   void initState() {
     super.initState();
+    // Change the background gradient every 6 seconds for a cool effect
     Timer.periodic(const Duration(seconds: 6), (timer) {
       _updateGradient();
     });
@@ -153,12 +163,14 @@ class _TodoHomePageState extends State<TodoHomePage> {
     super.dispose();
   }
 
+  // Check every minute if any tasks are approaching their deadline
   void _startNotificationTimer() {
     _notificationTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _checkDeadlines();
     });
   }
 
+  // Look through all notes and show alerts for upcoming deadlines
   void _checkDeadlines() {
     final now = DateTime.now();
     for (final note in _stickyNotes) {
@@ -166,7 +178,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
         final deadline = note.deadline!;
         final difference = deadline.difference(now);
 
-        // Check if deadline is within 5 minutes and note has incomplete tasks
+        // If the deadline is within 5 minutes and there are unfinished tasks, show notification
         if (difference.inMinutes <= 5 && difference.inMinutes >= 0) {
           final incompleteTasks =
               note.tasks.where((task) => !task.isCompleted).length;
@@ -178,6 +190,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
     }
   }
 
+  // Shows a popup dialog when a deadline is approaching
   void _showDeadlineNotification(TodoItem note) {
     if (!mounted) return;
 
@@ -205,6 +218,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                // Take user directly to the note with urgent tasks
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -223,6 +237,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
     );
   }
 
+  // Generate random colors for the animated background
   void _updateGradient() {
     setState(() {
       _gradientColors = [
@@ -232,13 +247,14 @@ class _TodoHomePageState extends State<TodoHomePage> {
     });
   }
 
+  // Creates a new sticky note and adds it to the list
   void _addStickyNote(String title, DateTime? deadline) {
     if (title.trim().isEmpty) return;
     setState(() {
       _stickyNotes.add(TodoItem(
         id: 'note_${_idCounter++}',
         title: title,
-        angle: (_random.nextDouble() * 6 - 3) * pi / 180,
+        angle: (_random.nextDouble() * 6 - 3) * pi / 180, // Slight random rotation for that sticky note look
         color: _noteColors[_random.nextInt(_noteColors.length)],
         deadline: deadline,
         tasks: [],
@@ -247,34 +263,37 @@ class _TodoHomePageState extends State<TodoHomePage> {
     });
   }
 
+  // Applies current filter and sort settings to the list of notes
   List<TodoItem> _getFilteredAndSortedNotes() {
     List<TodoItem> filteredNotes = List.from(_stickyNotes);
 
-    // Apply filter
+    // First, filter the notes based on what the user wants to see
     switch (_currentFilter) {
       case FilterOption.upcomingDeadlines:
         final now = DateTime.now();
         filteredNotes = filteredNotes.where((note) {
           if (note.deadline == null) return false;
           return note.deadline!.isAfter(now) &&
-              note.deadline!.difference(now).inDays <= 7; // Next 7 days
+              note.deadline!.difference(now).inDays <= 7; // Show notes due in the next week
         }).toList();
         break;
       case FilterOption.completed:
+        // Only show notes where all tasks are done
         filteredNotes = filteredNotes.where((note) {
           if (note.tasks.isEmpty) return false;
           return note.tasks.every((task) => task.isCompleted);
         }).toList();
         break;
       case FilterOption.all:
-        // No filtering
+        // Show everything
         break;
     }
 
-    // Apply sorting
+    // Then, sort them according to user preference
     switch (_currentSort) {
       case SortOption.deadline:
         filteredNotes.sort((a, b) {
+          // Notes without deadlines go to the end
           if (a.deadline == null && b.deadline == null) return 0;
           if (a.deadline == null) return 1;
           if (b.deadline == null) return -1;
@@ -282,9 +301,11 @@ class _TodoHomePageState extends State<TodoHomePage> {
         });
         break;
       case SortOption.creationDate:
+        // Newest notes first
         filteredNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         break;
       case SortOption.title:
+        // Alphabetically by title
         filteredNotes.sort((a, b) => a.title.compareTo(b.title));
         break;
     }
@@ -292,6 +313,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
     return filteredNotes;
   }
 
+  // Shows the bottom sheet with sort and filter options
   void _showSortFilterModal() {
     showModalBottomSheet(
       context: context,
@@ -310,7 +332,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
             ),
             const SizedBox(height: 16),
 
-            // Sort Options
+            // Sort options section
             const Text(
               'Sort by:',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -356,7 +378,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
             const Divider(),
             const SizedBox(height: 8),
 
-            // Filter Options
+            // Filter options section
             const Text(
               'Filter by:',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
@@ -404,12 +426,14 @@ class _TodoHomePageState extends State<TodoHomePage> {
     );
   }
 
+  // Removes a sticky note from the list
   void _deleteStickyNote(String id) {
     setState(() {
       _stickyNotes.removeWhere((item) => item.id == id);
     });
   }
 
+  // Updates an existing note with new data
   void _updateStickyNote(TodoItem updatedNote) {
     setState(() {
       final index =
@@ -420,6 +444,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
     });
   }
 
+  // Shows the form to create a new sticky note
   void _showAddStickyNoteModal() {
     final titleController = TextEditingController();
     DateTime? selectedDeadline;
@@ -453,6 +478,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                 autofocus: true,
               ),
               const SizedBox(height: 12),
+              // Optional deadline picker
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.access_time),
@@ -470,6 +496,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                         )
                       : const Icon(Icons.arrow_forward_ios),
                   onTap: () async {
+                    // Let user pick a date first
                     final DateTime? pickedDate = await showDatePicker(
                       context: context,
                       initialDate: DateTime.now(),
@@ -478,6 +505,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                     );
 
                     if (pickedDate != null) {
+                      // Then pick a time
                       final TimeOfDay? pickedTime = await showTimePicker(
                         context: context,
                         initialTime: TimeOfDay.now(),
@@ -514,6 +542,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
     );
   }
 
+  // Helper function to format dates in a readable way
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
@@ -539,7 +568,6 @@ class _TodoHomePageState extends State<TodoHomePage> {
               onPressed: _showSortFilterModal,
               tooltip: 'Sort & Filter',
             ),
-            // IMPROVEMENT: Removed redundant add button from AppBar
           ],
         ),
         body: _stickyNotes.isEmpty
@@ -552,6 +580,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
             : Builder(builder: (context) {
                 final filteredNotes = _getFilteredAndSortedNotes();
 
+                // Show a message if the filter results in no notes
                 if (filteredNotes.isEmpty) {
                   return const Center(
                     child: Column(
@@ -572,12 +601,13 @@ class _TodoHomePageState extends State<TodoHomePage> {
                   );
                 }
 
+                // Display notes in a grid layout
                 return Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: GridView.builder(
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                      crossAxisCount: 2, // Two columns
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                       childAspectRatio: 0.85,
@@ -585,6 +615,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                     itemCount: filteredNotes.length,
                     itemBuilder: (context, index) {
                       final note = filteredNotes[index];
+                      // Calculate progress for the progress bar
                       final completedTasks =
                           note.tasks.where((task) => task.isCompleted).length;
                       final totalTasks = note.tasks.length;
@@ -592,9 +623,10 @@ class _TodoHomePageState extends State<TodoHomePage> {
                           totalTasks > 0 ? completedTasks / totalTasks : 0.0;
 
                       return Transform.rotate(
-                        angle: note.angle,
+                        angle: note.angle, // Give each note a slight tilt
                         child: GestureDetector(
                           onTap: () {
+                            // Open the detail page when tapped
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -630,6 +662,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Note title
                                 Text(
                                   note.title,
                                   style: TextStyle(
@@ -640,6 +673,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                                // Show deadline if it exists
                                 if (note.deadline != null) ...[
                                   const SizedBox(height: 4),
                                   Text(
@@ -651,6 +685,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                                   ),
                                 ],
                                 const SizedBox(height: 8),
+                                // Progress indicator
                                 if (totalTasks > 0) ...[
                                   LinearProgressIndicator(
                                     value: progress,
@@ -681,6 +716,7 @@ class _TodoHomePageState extends State<TodoHomePage> {
                                   ),
                                 ],
                                 const Spacer(),
+                                // Delete button and completion percentage
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
@@ -724,9 +760,10 @@ class _TodoHomePageState extends State<TodoHomePage> {
 
 
 // ---------------- Sticky Note Detail Page ----------------
+// This page shows all tasks within a single sticky note
 class StickyNoteDetailPage extends StatefulWidget {
   final TodoItem stickyNote;
-  final Function(TodoItem) onUpdate;
+  final Function(TodoItem) onUpdate; // Callback to update the note in the parent
 
   const StickyNoteDetailPage({
     super.key,
@@ -746,13 +783,14 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
   void initState() {
     super.initState();
     _currentNote = widget.stickyNote;
-    // Initialize counter based on existing tasks to avoid ID collision
+    // Figure out the next available task ID by looking at existing tasks
     if (_currentNote.tasks.isNotEmpty) {
       final ids = _currentNote.tasks.map((e) => int.tryParse(e.id.split('_').last) ?? 0);
       _taskIdCounter = ids.reduce(max) + 1;
     }
   }
 
+  // Shows a form to edit the sticky note's title and deadline
   void _editStickyNote() {
     final titleController = TextEditingController(text: _currentNote.title);
     DateTime? selectedDeadline = _currentNote.deadline;
@@ -806,7 +844,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
                     final DateTime? pickedDate = await showDatePicker(
                       context: context,
                       initialDate: selectedDeadline ?? DateTime.now(),
-                      firstDate: DateTime.now().subtract(const Duration(days: 30)), // Allow past dates
+                      firstDate: DateTime.now().subtract(const Duration(days: 30)), // Allow editing past dates
                       lastDate: DateTime.now().add(const Duration(days: 365)),
                     );
 
@@ -866,6 +904,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
     );
   }
 
+  // Adds a new task to this sticky note
   void _addTask(String taskTitle) {
     if (taskTitle.trim().isEmpty) return;
     setState(() {
@@ -879,6 +918,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
     widget.onUpdate(_currentNote);
   }
 
+  // Marks a task as complete or incomplete
   void _toggleTask(String taskId) {
     setState(() {
       final updatedTasks = _currentNote.tasks.map((task) {
@@ -892,6 +932,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
     widget.onUpdate(_currentNote);
   }
 
+  // Removes a task from this sticky note
   void _deleteTask(String taskId) {
     setState(() {
       _currentNote = _currentNote.copyWith(
@@ -901,6 +942,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
     widget.onUpdate(_currentNote);
   }
 
+  // Shows a form to add a new task
   void _showAddTaskModal() {
     final controller = TextEditingController();
     showModalBottomSheet(
@@ -949,12 +991,14 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
     );
   }
 
+  // Helper to format dates nicely
   String _formatDateTime(DateTime dateTime) {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
+    // Calculate overall progress for this note
     final completedTasks =
         _currentNote.tasks.where((task) => task.isCompleted).length;
     final totalTasks = _currentNote.tasks.length;
@@ -999,7 +1043,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
         ),
         body: Column(
           children: [
-            // Header with deadline and progress
+            // Header card showing deadline and progress
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(16),
@@ -1017,6 +1061,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Show deadline if one is set
                   if (_currentNote.deadline != null) ...[
                     Row(
                       children: [
@@ -1034,6 +1079,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  // Progress bar showing task completion
                   Row(
                     children: [
                       Expanded(
@@ -1071,7 +1117,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
               ),
             ),
 
-            // Tasks list
+            // List of all tasks
             Expanded(
               child: _currentNote.tasks.isEmpty
                   ? const Center(
@@ -1131,6 +1177,7 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
                               task.title,
                               style: TextStyle(
                                 fontSize: 16,
+                                // Strike through completed tasks
                                 decoration: task.isCompleted
                                     ? TextDecoration.lineThrough
                                     : TextDecoration.none,
@@ -1161,14 +1208,15 @@ class _StickyNoteDetailPageState extends State<StickyNoteDetailPage> {
 }
 
 // ---------------- Sticky Note Model ----------------
+// Represents a complete sticky note with all its properties
 class TodoItem {
   final String id;
   final String title;
-  final double angle;
+  final double angle; // Rotation angle for that authentic sticky note look
   final Color color;
-  final DateTime? deadline;
-  final List<Task> tasks;
-  final DateTime createdAt;
+  final DateTime? deadline; // Optional deadline for the note
+  final List<Task> tasks; // All tasks within this note
+  final DateTime createdAt; // When the note was created
 
   TodoItem({
     required this.id,
@@ -1180,7 +1228,8 @@ class TodoItem {
     required this.createdAt,
   });
 
-  // KEY FIX: The copyWith method is corrected to allow setting deadline to null.
+  // Creates a copy of this note with some fields optionally updated
+  // Important: This allows setting deadline to null by explicitly passing null
   TodoItem copyWith({
     String? id,
     String? title,
@@ -1195,8 +1244,7 @@ class TodoItem {
       title: title ?? this.title,
       angle: angle ?? this.angle,
       color: color ?? this.color,
-      // The '?? this.deadline' is removed.
-      // This is the main logical fix.
+      // Directly use the passed deadline value, even if it's null
       deadline: deadline,
       tasks: tasks ?? this.tasks,
       createdAt: createdAt ?? this.createdAt,
